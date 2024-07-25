@@ -1,0 +1,91 @@
+# Load required libraries
+if (!requireNamespace("e1071", quietly = TRUE)) {
+  install.packages("e1071")
+}
+if (!requireNamespace("caret", quietly = TRUE)) {
+  install.packages("caret")
+}
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+
+library(e1071)   # For SVM
+library(caret)   # For data splitting
+library(ggplot2) # For plotting
+
+# Load the dataset
+dataset_path <- "/content/survey lung cancer.csv"  # Replace with actual path to your dataset
+df <- read.csv(dataset_path)
+
+# Display the first few rows and check columns
+head(df)
+names(df)
+
+# Assuming 'LUNG_CANCER' is the target variable (please replace with the correct name if different)
+target_variable <- "LUNG_CANCER"
+X <- df[, !(names(df) %in% target_variable)]  # Features
+y <- df[[target_variable]]  # Target
+
+# Convert categorical target variable to numerical if necessary
+y <- as.factor(ifelse(y == 'YES', 1, 0))
+
+# Convert categorical features to factors if needed
+X <- data.frame(lapply(X, as.factor))
+
+# Split the data into training and testing sets
+set.seed(42)
+trainIndex <- createDataPartition(y, p = 0.8, list = FALSE)
+X_train <- X[trainIndex, ]
+X_test <- X[-trainIndex, ]
+y_train <- y[trainIndex]
+y_test <- y[-trainIndex]
+
+# Ensure all features are numeric or factors
+X_train <- data.frame(lapply(X_train, as.numeric))
+X_test <- data.frame(lapply(X_test, as.numeric))
+
+# Scale the data manually
+X_train_scaled <- scale(X_train)
+X_test_scaled <- scale(X_test)
+
+# Train the SVM classifier
+svm_classifier <- svm(X_train_scaled, y_train, kernel = "linear")
+
+# Predict on the test data
+y_pred <- predict(svm_classifier, X_test_scaled)
+
+# Model evaluation
+accuracy <- mean(y_pred == y_test)
+cat("Accuracy:", round(accuracy, 2), "\n")
+
+# Confusion matrix
+conf_matrix <- table(Predicted = y_pred, Actual = y_test)
+print(conf_matrix)
+
+# Function to print classification report
+classification_report <- function(conf_matrix) {
+  tp <- ifelse(dim(conf_matrix)[1] >= 2, conf_matrix[2, 2], 0)
+  tn <- ifelse(dim(conf_matrix)[1] >= 1, conf_matrix[1, 1], 0)
+  fp <- ifelse(dim(conf_matrix)[1] >= 2, conf_matrix[2, 1], 0)
+  fn <- ifelse(dim(conf_matrix)[1] >= 1, conf_matrix[1, 2], 0)
+
+  precision <- ifelse(tp + fp == 0, 0, tp / (tp + fp))
+  recall <- ifelse(tp + fn == 0, 0, tp / (tp + fn))
+  f1_score <- ifelse(precision + recall == 0, 0, 2 * precision * recall / (precision + recall))
+
+  cat("Precision:", round(precision, 2), "\n")
+  cat("Recall:", round(recall, 2), "\n")
+  cat("F1 Score:", round(f1_score, 2), "\n")
+}
+
+# Print classification report
+classification_report(conf_matrix)
+
+# Plot confusion matrix
+cm_melted <- melt(conf_matrix)
+ggplot(data = cm_melted, aes(x = Predicted, y = Actual, fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = value)) +
+  scale_fill_gradient(low = "white", high = "blue") +
+  theme_minimal() +
+  ggtitle("Confusion Matrix")
